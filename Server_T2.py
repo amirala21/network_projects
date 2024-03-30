@@ -3,6 +3,8 @@ import threading
 import tkinter
 import tkinter.scrolledtext
 from tkinter import simpledialog
+import os
+
 
 class ServerApp:
     def __init__(self, host, port):
@@ -57,7 +59,7 @@ class ServerApp:
                     sender_index = self.clients.index(client)
                     sender_nickname = self.nicknames[sender_index]
                     print(f"{sender_nickname}: {message}")
-                    self.conversations.setdefault(sender_nickname, []).append(f"{sender_nickname}: {message}")
+                    self.conversations.setdefault(sender_nickname, []).append(f" >>> {message}")
                     if self.selected_client_nickname.get() == sender_nickname:
                         self.update_conversation_text(sender_nickname)
             except:
@@ -94,6 +96,21 @@ class ServerApp:
         self.chat_list.bind("<<ListboxSelect>>", self.select_client)  # Bind the select event
         self.chat_list.grid(row=0, column=0, sticky="nsew")
 
+        disconnect_button = tkinter.Button(chat_frame, text="Disconnect", command=self.disconnect_selected_client)
+        disconnect_button.grid(row=1, column=0, sticky="ew", pady=5)
+
+        change_name_button = tkinter.Button(chat_frame, text="Change Name", command=self.change_client_name)
+        change_name_button.grid(row=2, column=0, sticky="ew", pady=5)
+
+        move_up_button = tkinter.Button(chat_frame, text="Move Up", command=self.move_up)
+        move_up_button.grid(row=3, column=0, sticky="ew", pady=5)
+
+        move_down_button = tkinter.Button(chat_frame, text="Move Down", command=self.move_down)
+        move_down_button.grid(row=4, column=0, sticky="ew", pady=5)
+
+        Broadcast_button=tkinter.Button(chat_frame,text="Broadcast",command=self.broadcast)
+        Broadcast_button.grid(row=5, column=0, sticky="ew", pady=5)
+        
         conversation_frame = tkinter.Frame(self.window, bg="lightgray")
         conversation_frame.grid(row=0, column=1, sticky="nsew")
         # conversation_frame.config(bg='black')
@@ -105,8 +122,8 @@ class ServerApp:
         self.message_entry = tkinter.Entry(conversation_frame, width=50, font="consolas")
         self.message_entry.grid(row=1, column=0, sticky="ew", padx=5)
         self.message_entry.config(bg='black',fg='white')
-        
-        
+
+
         send_button = tkinter.Button(conversation_frame, text="Send", command=self.send_message, width=10)
         send_button.grid(row=1, column=1, sticky="ew", pady=5)
 
@@ -115,7 +132,21 @@ class ServerApp:
         self.window.protocol("WM_DELETE_WINDOW", self.stop)
 
         self.window.mainloop()
-
+   
+    
+    def broadcast(self):
+        message=simpledialog.askstring("Command", f"please enter command:")
+        for nick in self.nicknames:
+            selected_client_nickname = nick
+            if selected_client_nickname:
+                selected_index = self.nicknames.index(selected_client_nickname)
+                selected_client = self.clients[selected_index]
+                selected_client.send(message.encode('utf-8'))
+                self.conversation_text.config(state='normal')
+                self.conversation_text.insert(tkinter.END, f" {message}\n")
+                self.conversation_text.config(state='disabled')
+                self.message_entry.delete(0, tkinter.END)
+    
     def select_client(self, event):
         selected_index = self.chat_list.curselection()
         if selected_index:
@@ -138,7 +169,6 @@ class ServerApp:
     def update_chat_list(self):
         self.chat_list.delete(0, tkinter.END)
         for name in self.nicknames:
-           
             self.chat_list.insert(tkinter.END, name)
 
     def update_conversation_text(self, nickname):
@@ -148,6 +178,46 @@ class ServerApp:
         for message in conversation_history:
             self.conversation_text.insert(tkinter.END, f"{message}\n")
         self.conversation_text.config(state='disabled')
+
+    def disconnect_selected_client(self):
+        selected_index = self.chat_list.curselection()
+        if selected_index:
+            nickname = self.chat_list.get(selected_index)
+            self.selected_client_nickname.set("")
+            self.update_conversation_text("")
+            self.update_chat_list()
+
+    def change_client_name(self):
+        selected_index = self.chat_list.curselection()
+        if selected_index:
+            old_nickname = self.chat_list.get(selected_index)
+            new_nickname = simpledialog.askstring("Change Name", f"Change name of {old_nickname} to:")
+            if new_nickname and new_nickname != old_nickname:
+                index = self.nicknames.index(old_nickname)
+                self.nicknames[index] = new_nickname
+                self.update_chat_list()
+                self.chat_list.selection_clear(0, tkinter.END)
+                self.chat_list.select_set(selected_index)
+                self.selected_client_nickname.set(new_nickname)
+                self.update_conversation_text(new_nickname)
+
+    def move_up(self):
+        selected_index = self.chat_list.curselection()
+        if selected_index and selected_index[0] > 0:
+            nickname = self.chat_list.get(selected_index)
+            index = selected_index[0]
+            self.nicknames[index], self.nicknames[index - 1] = self.nicknames[index - 1], self.nicknames[index]
+            self.update_chat_list()
+            self.chat_list.selection_set(index - 1)
+
+    def move_down(self):
+        selected_index = self.chat_list.curselection()
+        if selected_index and selected_index[0] < len(self.nicknames) - 1:
+            nickname = self.chat_list.get(selected_index)
+            index = selected_index[0]
+            self.nicknames[index], self.nicknames[index + 1] = self.nicknames[index + 1], self.nicknames[index]
+            self.update_chat_list()
+            self.chat_list.selection_set(index + 1)
 
     def stop(self):
         self.server.close()
