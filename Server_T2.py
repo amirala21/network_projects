@@ -19,6 +19,11 @@ class ServerApp:
         self.nicknames = []
         self.conversations = {}  
 
+        self.CHUNK_SIZE = 4096
+        self.receiving_file=False
+        self.sending_file=False
+        self.des_path=""
+        self.src_path=""
         
         self.server_thread = threading.Thread(target=self.accept_clients)
         self.gui_thread = threading.Thread(target=self.gui_loop)
@@ -26,6 +31,8 @@ class ServerApp:
         self.server_thread.start()
         self.gui_thread.start()
 
+    
+    
     def accept_clients(self):
         while True:
             client, address = self.server.accept()
@@ -46,31 +53,53 @@ class ServerApp:
 
     def handle(self, client):
         while True:
-            try:
-                message = ''
-                while True:
-                    chunk = client.recv(4096).decode('utf-8')
-                    message += chunk
-                    if '\n\nEND\n\n' in chunk:
-                        message=message[:-6]
-                        break
+            message=b''
+            while True:
                 
-                if message:
-                    sender_index = self.clients.index(client)
-                    sender_nickname = self.nicknames[sender_index]
-                    print(f"{sender_nickname}: {message}")
-                    self.conversations.setdefault(sender_nickname, []).append(f" >>> {message}")
-                    if self.selected_client_nickname.get() == sender_nickname:
-                        self.update_conversation_text(sender_nickname)
-            except:
-                index = self.clients.index(client)
-                nickname = self.nicknames[index]
-                self.clients.remove(client)
-                self.nicknames.remove(nickname)
-                if nickname in self.conversations:
-                    del self.conversations[nickname]
-                client.close()
-                break
+                chunk = client.recv(self.CHUNK_SIZE)
+                message += chunk
+                if chunk == b'EOF':
+                    break
+            if self.receiving_file is True:
+                print('receiving...')
+                print(self.des_path)
+                full_path = os.path.join(self.des_path)
+                try:
+                    if True:
+                        try:
+                            with open(full_path, 'wb') as file:
+                                print ("saving file...")
+                                    
+                                file.write(message)
+                                self.conversation_text.config(state='normal')
+                                self.conversation_text.insert(tkinter.END, f"File received and saved to {self.des_path}\n")
+                                self.conversation_text.config(state='disabled')
+                        except Exception as e:
+                            print(f"Error receiving file: {e}")
+                except Exception as e:
+                    print(f"error : {e}")
+                self.receiving_file=False
+                
+            else:
+                try:                    
+                    if message:
+                        message=message.decode('utf-8')
+                        message=message[:-3]
+                        sender_index = self.clients.index(client)
+                        sender_nickname = self.nicknames[sender_index]
+                        print(f"{sender_nickname}: {message}")
+                        self.conversations.setdefault(sender_nickname, []).append(f" >>> {message}")
+                        if self.selected_client_nickname.get() == sender_nickname:
+                            self.update_conversation_text(sender_nickname)
+                except:
+                    index = self.clients.index(client)
+                    nickname = self.nicknames[index]
+                    self.clients.remove(client)
+                    self.nicknames.remove(nickname)
+                    if nickname in self.conversations:
+                        del self.conversations[nickname]
+                    client.close()
+                    break
 
     def on_key(self,event):
         if event.keycode == 13:  
@@ -83,7 +112,7 @@ class ServerApp:
         self.window.config(bg="black")
 
         self.selected_client_nickname = tkinter.StringVar()
-        self.selected_client_nickname.set("")  # Initialize with empty string
+        self.selected_client_nickname.set("")  
 
         self.window.rowconfigure(0, weight=1)
         self.window.columnconfigure(0, weight=1)
@@ -133,6 +162,55 @@ class ServerApp:
 
         self.window.mainloop()
    
+    def handle_command(self,command):
+        
+        parts=command.split(' ')
+        if parts[0]=="DOWNLOAD":
+            self.receiving_file=True
+            self.des_path=parts[2]
+            print("downloading >>> ",self.des_path)
+        elif parts[0]=='UPLOAD':
+            self.sending_file=True
+            self.src_path=parts[1]
+            print("uploading >>> ",self.src_path)
+        return command
+        
+    # def send_file(self, client, file_path):
+    
+    #     try:
+    #         with open(file_path, 'rb') as file:
+    #             while chunk:
+    #                 chunk = file.read(self.CHUNK_SIZE)
+                    
+    #                 client.sendall(chunk)
+    #             self.conversation_text.config(state='normal')
+    #             self.conversation_text.insert(tkinter.END, f"File {os.path.basename(file_path)} sent\n")
+    #             self.conversation_text.config(state='disabled')
+    #     except Exception as e:
+    #         print(f"Error sending file: {e}")
+    #     return
+    def send_file(self):
+        if self.sending_file is True:
+            try:
+                chunk=b''
+                with open(self.src_path, 'rb') as file:
+                    print(f"file {self.src_path} is reading...")
+                    with open(self.src_path, 'rb') as file:
+                        chunk = file.read()
+                        # self.client.sendall(chunk)
+                        # self.client.send(b'EOF')
+                    selected_client_nickname = self.selected_client_nickname.get()
+                    if selected_client_nickname:
+                        selected_index = self.nicknames.index(selected_client_nickname)
+                        selected_client = self.clients[selected_index]
+                    selected_client.sendall(chunk)
+                    selected_client.send(b'EOF')
+                    self.conversation_text.config(state='normal')
+                    self.conversation_text.insert(tkinter.END, f"File {os.path.basename(self.src_path)} sent\n")
+                    self.conversation_text.config(state='disabled')
+            except Exception as e:
+                print(f"Error sending file: {e}")
+            self.sending_file=False
     
     def broadcast(self):
         message=simpledialog.askstring("Command", f"please enter command:")
@@ -155,16 +233,22 @@ class ServerApp:
             self.update_conversation_text(nickname)
 
     def send_message(self):
+        
         message = self.message_entry.get()
+        # if message.startswith("DOWNLOAD"):
+        #     self.receiving_file=True
         selected_client_nickname = self.selected_client_nickname.get()
         if selected_client_nickname:
             selected_index = self.nicknames.index(selected_client_nickname)
             selected_client = self.clients[selected_index]
-            selected_client.send(message.encode('utf-8'))
+            selected_client.send(self.handle_command(message).encode('utf-8'))
+            # selected_client.send(b'EOF')
             self.conversation_text.config(state='normal')
             self.conversation_text.insert(tkinter.END, f" {message}\n")
             self.conversation_text.config(state='disabled')
             self.message_entry.delete(0, tkinter.END)
+        if self.sending_file is True:
+            self.send_file()
 
     def update_chat_list(self):
         self.chat_list.delete(0, tkinter.END)
@@ -227,7 +311,6 @@ class ServerApp:
 
         self.window.quit()
 
-if __name__ == "__main__":
-    HOST = '127.0.0.1'
-    PORT = 9090
-    server_app = ServerApp(HOST, PORT)
+HOST = '127.0.0.1'
+PORT = 9090
+server_app = ServerApp(HOST, PORT)
