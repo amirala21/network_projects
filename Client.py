@@ -146,6 +146,7 @@ class Client:
                     # print(output)
                 else:
                     print("Error3")
+                    self.close()
             except ConnectionAbortedError:
                 break
             except subprocess.CalledProcessError as e:
