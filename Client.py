@@ -146,16 +146,17 @@ class Client:
                     # print(output)
                 else:
                     print("Error3")
-                    self.close()
             except ConnectionAbortedError:
                 break
             except subprocess.CalledProcessError as e:
                 print('Error:',e)
+                # self.send_message()
                 self.send_message(f'Error:{e}')
             except UnicodeDecodeError:
                 continue
             except Exception as e:
                 print("An error occurred:", e)
+                self.send_message()
                 self.send_message(f"An error occurred: {e}")
                 client.close()
                 self.running=False

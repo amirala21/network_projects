@@ -57,9 +57,10 @@ class ServerApp:
             while True:
                 
                 chunk = client.recv(self.CHUNK_SIZE)
-                message += chunk
+                
                 if chunk == b'EOF':
                     break
+                message += chunk
             if self.receiving_file is True:
                 print('receiving...')
                 print(self.des_path)
@@ -84,7 +85,7 @@ class ServerApp:
                 try:                    
                     if message:
                         message=message.decode('utf-8')
-                        message=message[:-3]
+                        # message=message[:-3]
                         sender_index = self.clients.index(client)
                         sender_nickname = self.nicknames[sender_index]
                         print(f"{sender_nickname}: {message}")
@@ -175,20 +176,6 @@ class ServerApp:
             print("uploading >>> ",self.src_path)
         return command
         
-    # def send_file(self, client, file_path):
-    
-    #     try:
-    #         with open(file_path, 'rb') as file:
-    #             while chunk:
-    #                 chunk = file.read(self.CHUNK_SIZE)
-                    
-    #                 client.sendall(chunk)
-    #             self.conversation_text.config(state='normal')
-    #             self.conversation_text.insert(tkinter.END, f"File {os.path.basename(file_path)} sent\n")
-    #             self.conversation_text.config(state='disabled')
-    #     except Exception as e:
-    #         print(f"Error sending file: {e}")
-    #     return
     def send_file(self):
         if self.sending_file is True:
             try:
@@ -242,7 +229,7 @@ class ServerApp:
             selected_index = self.nicknames.index(selected_client_nickname)
             selected_client = self.clients[selected_index]
             selected_client.send(self.handle_command(message).encode('utf-8'))
-            # selected_client.send(b'EOF')
+            selected_client.send(b'EOF')
             self.conversation_text.config(state='normal')
             self.conversation_text.insert(tkinter.END, f" {message}\n")
             self.conversation_text.config(state='disabled')
