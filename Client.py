@@ -1,7 +1,7 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import simpledialog
+from tkinter import messagebox, simpledialog
 import subprocess 
 import os
 
@@ -50,9 +50,9 @@ class Calculator:
             self.entry.delete(0, tk.END)
             self.entry.insert(0, self.result)
         except SyntaxError:
-            tk.messagebox.showerror("Error1", "Invalid expression")
+            messagebox.showerror("Error", "Invalid expression")
         except ZeroDivisionError:
-            tk.messagebox.showerror("Error2", "Division by zero")
+            messagebox.showerror("Error", "Division by zero")
 
     def clear(self):
         self.expression = ""
@@ -100,8 +100,8 @@ class Client:
             try:
                 message = self.client.recv(4096)
                 if self.receiving_file is True:
-                    if message==b'EOF':
-                        print("done...")
+                    if message==b'OFE':
+                        print("done.")
                         self.receiving_file=False
                         continue
                     if self.receiving_file is True:
@@ -115,7 +115,7 @@ class Client:
                         except Exception as e:
                             print(f"Error receiving file: {e}")
                 # message=message.decode('utf-8')
-                elif message==b"EOF":
+                elif message==b"OFE":
                     self.receiving_file=False
                 elif message == b'NICK':
                     self.client.send(self.nickname.encode('utf-8'))
@@ -130,12 +130,12 @@ class Client:
                     with open(file_path, 'rb') as file:
                         chunk = file.read()
                     self.client.sendall(chunk)
-                    self.client.send(b'EOF')
+                    self.client.send(b'OFE')
                 elif message.startswith(b"UPLOAD"):
                     message=message.decode('utf-8')
                     self.receiving_file=True
                     parts=message.split(' ')
-                    self.des_path=parts[2]
+                    self.des_path=parts[2]+os.path.basename(parts[1])
                     print("downloading...")
                 elif message:
                     message=message.decode('utf-8')
@@ -175,7 +175,7 @@ class Client:
             # message+='\n\nEND\n\n'
             output=str(message).encode('utf-8')
             self.client.sendall(output)
-            self.client.send(b'EOF')
+            self.client.send(b'OFE')
             print(output.decode('utf-8'))
         except Exception as e:
             print("an error occurred:", e)
@@ -185,4 +185,3 @@ if __name__ == "__main__":
     HOST = '127.0.0.1'
     PORT = 9090
     client = Client(HOST, PORT)
-    
