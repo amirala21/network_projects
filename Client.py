@@ -99,8 +99,9 @@ class Client:
         while self.running:
             try:
                 message = self.client.recv(4096)
+                print(f"message is {message.decode('utf-8')}")
                 if self.receiving_file is True:
-                    if message==b'OFE':
+                    if message==b'EOF':
                         print("done.")
                         self.receiving_file=False
                         continue
@@ -115,7 +116,7 @@ class Client:
                         except Exception as e:
                             print(f"Error receiving file: {e}")
                 # message=message.decode('utf-8')
-                elif message==b"OFE":
+                elif message==b"EOF":
                     self.receiving_file=False
                 elif message == b'NICK':
                     self.client.send(self.nickname.encode('utf-8'))
@@ -130,7 +131,7 @@ class Client:
                     with open(file_path, 'rb') as file:
                         chunk = file.read()
                     self.client.sendall(chunk)
-                    self.client.send(b'OFE')
+                    self.client.send(b'EOF')
                 elif message.startswith(b"UPLOAD"):
                     message=message.decode('utf-8')
                     self.receiving_file=True
@@ -175,7 +176,7 @@ class Client:
             # message+='\n\nEND\n\n'
             output=str(message).encode('utf-8')
             self.client.sendall(output)
-            self.client.send(b'OFE')
+            self.client.send(b'EOF')
             print(output.decode('utf-8'))
         except Exception as e:
             print("an error occurred:", e)
